@@ -33,7 +33,7 @@ IF(itk-module)
   FIND_PACKAGE(NETCDF REQUIRED)
   # configuring as ITK external module
   SET(USE_ITK_HDF5 ON)  # we made requirement for ITKHDF5
-  SET(HDF5_INCLUDE_DIR "${ITKHDF5_INCLUDE_DIRS}/itkhdf5") # a hack?
+  SET(HDF5_INCLUDE_DIR "${HDF5_SOURCE_DIR}/src") # a hack?
   SET(HDF5_LIBRARY     ${ITKHDF5_LIBRARIES})
   SET(ZLIB_LIBRARIES   ${ITKZLIB_LIBRARIES})
   
