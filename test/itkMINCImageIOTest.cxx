@@ -25,11 +25,45 @@
 #include "itkMetaDataObject.h"
 #include "itkObjectFactoryBase.h"
 
-template <typename TPixel> int MINCReadWriteTest(const char *fileName)
+static void RandomPix(vnl_random &randgen,itk::RGBPixel<unsigned char> &pix)
+{
+  for(unsigned int i = 0; i < 3; i++)
+  {
+    pix[i] = randgen.lrand32(itk::NumericTraits<unsigned char>::max());
+  }
+}
+
+static void RandomPix(vnl_random &randgen, itk::Vector<float,3> &pix)
+{
+  //pix = randgen.lrand32(itk::NumericTraits<TPixel>::max());
+  pix[0]=randgen.drand64(itk::NumericTraits<float>::max());
+  pix[1]=randgen.drand64(itk::NumericTraits<float>::max());
+  pix[2]=randgen.drand64(itk::NumericTraits<float>::max());
+}
+
+static void RandomPix(vnl_random &randgen, double &pix)
+{
+  pix = randgen.drand64(itk::NumericTraits<double>::max());
+}
+ 
+static void RandomPix(vnl_random &randgen, float &pix)
+{
+   pix = randgen.drand64(itk::NumericTraits<float>::max());
+}
+
+template <typename TPixel> 
+static void RandomPix(vnl_random &randgen, TPixel &pix)
+{
+  pix = randgen.lrand32(itk::NumericTraits<TPixel>::max());
+}
+
+
+template <typename TPixel,int dim> int MINCReadWriteTest(const char *fileName)
 {
   int success(EXIT_SUCCESS);
   
-  typedef typename itk::Image<TPixel,3> ImageType;
+  typedef typename itk::Image<TPixel,dim> ImageType;
+  
   typename ImageType::RegionType imageRegion;
   typename ImageType::SizeType size;
   typename ImageType::IndexType index;
@@ -37,7 +71,7 @@ template <typename TPixel> int MINCReadWriteTest(const char *fileName)
   typename ImageType::PointType origin;
   typename ImageType::DirectionType myDirection;
   
-  for(unsigned i = 0; i < 3; i++)
+  for(unsigned i = 0; i < dim; i++)
   {
     size[i] = 5;
     index[i] = 0;
@@ -50,14 +84,18 @@ template <typename TPixel> int MINCReadWriteTest(const char *fileName)
   typename ImageType::Pointer im =
     itk::IOTestHelper::AllocateImageFromRegionAndSpacing<ImageType>(imageRegion,spacing);
 
-  itk::Matrix<double> mat;
+  itk::Matrix<double,dim,dim> mat;
+  
   mat.SetIdentity();
-  // 30deg rotation
-  mat[1][1] =
-  mat[0][0] = 0.866025403784439;
-  mat[0][1] = -0.5;
-  mat[1][0] = 0.5;
-  im->SetDirection(mat);
+  
+  if(dim==3) { //there are problems with 4D direction cosines!
+    // 30deg rotation
+    mat[1][1] =
+    mat[0][0] = 0.866025403784439;
+    mat[0][1] = -0.5;
+    mat[1][0] = 0.5;
+    im->SetDirection(mat);
+  } 
   //
   // add some unique metadata
   itk::MetaDataDictionary & metaDict(im->GetMetaDataDictionary());
@@ -117,47 +155,50 @@ template <typename TPixel> int MINCReadWriteTest(const char *fileName)
   // fill image buffer
   vnl_random randgen(12345678);
   itk::ImageRegionIterator<ImageType> it(im,im->GetLargestPossibleRegion());
+  
   for(it.GoToBegin(); !it.IsAtEnd(); ++it)
-    {
+  {
     TPixel pix;
-    itk::IOTestHelper::RandomPix(randgen,pix);
+    RandomPix(randgen,pix);
     it.Set(pix);
-    }
+  }
+ 
   typename ImageType::Pointer im2;
+  
   try
-    {
+  {
     itk::IOTestHelper::WriteImage<ImageType,itk::MincImageIO>(im,std::string(fileName));
     im2 = itk::IOTestHelper::ReadImage<ImageType>(std::string(fileName));
-    }
+  }
   catch(itk::ExceptionObject &err)
-    {
+  {
     std::cout << "itkMINCImageIOTest" << std::endl
               << "Exception Object caught: " << std::endl
               << err << std::endl;
     return EXIT_FAILURE;
-    }
+  }
 
   if(im->GetOrigin() != im2->GetOrigin())
-    {
+  {
     std::cout << "Origin read "
               << im2->GetOrigin() << " doesn't match origin written"
               << im->GetOrigin() << std::endl;
     return EXIT_FAILURE;
-    }
+  }
   if(im->GetSpacing() != im2->GetSpacing())
-    {
+  {
     std::cout << "Spacing read "
               << im2->GetSpacing() << " doesn't match spacing written"
               << im->GetSpacing() << std::endl;
     return EXIT_FAILURE;
-    }
+  }
   if(im->GetDirection() != im2->GetDirection())
-    {
+  {
     std::cout << "Direction read "
               << im2->GetDirection() << " doesn't match direction written"
               << im->GetDirection() << std::endl;
     return EXIT_FAILURE;
-    }
+  }
   //
   // Check MetaData
   itk::MetaDataDictionary & metaDict2(im2->GetMetaDataDictionary());
@@ -297,28 +338,28 @@ template <typename TPixel> int MINCReadWriteTest(const char *fileName)
 //     success = EXIT_FAILURE;
 //     }
 
-//   std::string metaDataStdString2("");
-//   if(!itk::ExposeMetaData<std::string>(metaDict2,"acquisition:StdString",metaDataStdString2) ||
-//      metaDataStdString2 != metaDataStdString)
-//     {
-//     std::cerr << "Failure reading metaData " << "StdString "
-//               << metaDataStdString2 << " " << metaDataStdString
-//               <<  std::endl;
-//     success = EXIT_FAILURE;
-//     }
+   std::string metaDataStdString2("");
+   if(!itk::ExposeMetaData<std::string>(metaDict2,"acquisition:StdString",metaDataStdString2) ||
+      metaDataStdString2 != metaDataStdString)
+  {
+     std::cerr << "Failure reading metaData " << "StdString "
+               << metaDataStdString2 << " " << metaDataStdString
+               <<  std::endl;
+     success = EXIT_FAILURE;
+   }
 
   itk::ImageRegionIterator<ImageType> it2(im2,im2->GetLargestPossibleRegion());
   for(it.GoToBegin(),it2.GoToBegin(); !it.IsAtEnd() && !it2.IsAtEnd(); ++it,++it2)
-    {
+  {
     if(it.Value() != it2.Value())
-      {
+    {
       std::cout << "Original Pixel (" << it.Value()
                 << ") doesn't match read-in Pixel ("
                 << it2.Value() << std::endl;
       success = EXIT_FAILURE;
       break;
-      }
     }
+  }
   // Remove(fileName);
   return success;
 }
@@ -336,8 +377,15 @@ int itkMINCImageIOTest(int ac, char * av [] )
   itk::ObjectFactoryBase::RegisterFactory(itk::MincImageIOFactory::New() ,itk::ObjectFactoryBase::INSERT_AT_FRONT);
 
   int result(0);
-  result += MINCReadWriteTest<unsigned char>("UCharImage.mnc");
-  result += MINCReadWriteTest<float>("FloatImage.mnc");
-  result += MINCReadWriteTest<itk::RGBPixel<unsigned char> >("RGBImage.mnc");
+  result += MINCReadWriteTest<unsigned char,3>("3DUCharImage.mnc");
+  result += MINCReadWriteTest<float,3>("3DFloatImage.mnc");
+  result += MINCReadWriteTest<itk::RGBPixel<unsigned char>,3 >("3DRGBImage.mnc");
+  result += MINCReadWriteTest<itk::Vector<float,3>,3 >("3DVectorImage.mnc");
+  
+/*  result += MINCReadWriteTest<unsigned char,4>("4DUCharImage.mnc");
+  result += MINCReadWriteTest<float,4>("4DFloatImage.mnc");*/
+  
+/*  result += MINCReadWriteTest<itk::RGBPixel<unsigned char>,4 >("4DRGBImage.mnc");
+  result += MINCReadWriteTest<itk::Vector<float,3>,3 >("4DVectorImage.mnc");*/
   return result != 0;
 }
